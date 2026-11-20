@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Geschenke-Gedächtnis</title>
+  <meta name="description" content="Merkt sich Geschenkideen für deine Liebsten – auch aus deinen Chats, komplett lokal.">
+  <meta name="theme-color" content="#c2410c">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon.svg">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="top">
+    <button class="icon-btn" id="backBtn" hidden aria-label="Zurück">‹</button>
+    <h1 id="title">Geschenke-Gedächtnis</h1>
+  </header>
+
+  <main id="view"></main>
+
+  <nav class="tabs" aria-label="Navigation">
+    <button data-tab="home" class="active"><span>🎁</span>Personen</button>
+    <button data-tab="ideas"><span>💡</span>Ideen</button>
+    <button data-tab="import"><span>💬</span>Aus Chats</button>
+    <button data-tab="settings"><span>⚙️</span>Mehr</button>
+  </nav>
+
+  <dialog id="dialog"><form method="dialog" id="dialogForm"></form></dialog>
+  <div id="toast" role="status" aria-live="polite"></div>
+
+  <script src="detector.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

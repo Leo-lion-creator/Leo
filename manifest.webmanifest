@@ -1,0 +1,27 @@
+{
+  "name": "Geschenke-Gedächtnis",
+  "short_name": "Geschenke",
+  "description": "Merkt sich Geschenkideen – auch aus deinen Chats, komplett lokal.",
+  "lang": "de",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#fdf8f3",
+  "theme_color": "#c2410c",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ],
+  "share_target": {
+    "action": "./share-target",
+    "method": "POST",
+    "enctype": "multipart/form-data",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url",
+      "files": [
+        { "name": "file", "accept": ["text/plain", ".txt", "application/zip", ".zip", "application/json", ".json"] }
+      ]
+    }
+  }
+}
