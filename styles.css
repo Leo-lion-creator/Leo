@@ -141,7 +141,8 @@ a.shop.saved { background: var(--accent-soft); color: var(--accent); font-weight
 
 /* Sperre */
 #lock { position: fixed; inset: 0; z-index: 50; background: var(--bg); display: grid; place-items: center; padding: 24px 16px; }
-#lock[hidden] { display: none; }
+#lock[hidden], #lock form[hidden] { display: none; }
+#lock .btn.secondary { margin-bottom: 4px; }
 .lock-box { width: 100%; max-width: 320px; text-align: center; }
 .lock-icon { font-size: 3rem; }
 .lock-title { text-transform: none; letter-spacing: 0; color: var(--text); font-size: 1.2rem; margin: 8px 0 2px; }

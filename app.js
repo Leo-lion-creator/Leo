@@ -67,7 +67,7 @@
   }
 
   /** Einfacher Formular-Dialog. fields: [{name,label,type,value,options,placeholder}] */
-  function formDialog({ title, text, fields = [], ok = 'Speichern', danger }) {
+  function formDialog({ title, text, fields = [], ok = 'Speichern', danger, extraButton }) {
     return new Promise(resolve => {
       dialogForm.innerHTML = `
         <h3>${esc(title)}</h3>
@@ -82,9 +82,11 @@
         `).join('')}
         <div class="actions">
           <button class="btn ${danger ? 'danger' : ''}" value="ok">${esc(ok)}</button>
+          ${extraButton ? `<button class="btn secondary" value="${esc(extraButton.value)}" formnovalidate>${esc(extraButton.label)}</button>` : ''}
           <button class="btn secondary" value="cancel" formnovalidate>Abbrechen</button>
         </div>`;
       dialog.onclose = () => {
+        if (extraButton && dialog.returnValue === extraButton.value) return resolve(extraButton.value);
         if (dialog.returnValue !== 'ok') return resolve(null);
         const data = {};
         fields.forEach(f => { data[f.name] = dialogForm.elements[f.name].value.trim(); });
@@ -523,14 +525,14 @@
       <h2>App-Sperre</h2>
       <div class="card">
         ${on ? `<p><b>🔒 Aktiv</b> – Daten sind verschlüsselt gespeichert.<br>
-            <span class="muted">PIN ✓ · ${bioName()} ${Lock.hasBiometrics() ? '✓' : '–'} · sperrt nach 1 Min. im Hintergrund</span></p>
+            <span class="muted">${Lock.hasBiometrics() ? `Entsperren mit ${bioName()}, Notfall-Code nach 2 Fehlversuchen` : 'Entsperren mit Code'} · sperrt nach 1 Min. im Hintergrund</span></p>
           <div class="actions" style="margin-top:0">
             <button class="btn small" id="lockNow">Jetzt sperren</button>
             ${bioOk ? `<button class="btn secondary small" id="bioToggle">${bioName()} ${Lock.hasBiometrics() ? 'ausschalten' : 'einschalten'}</button>` : ''}
-            <button class="btn secondary small" id="pinChange">PIN ändern</button>
+            <button class="btn secondary small" id="pinChange">Code ändern</button>
             <button class="btn danger small" id="lockOff">Sperre ausschalten</button>
           </div>`
-        : `<p class="muted">Schütze deine Geschenkideen vor neugierigen Blicken – mit ${bioOk ? bioName() + ' und ' : ''}PIN. Die Daten werden dann verschlüsselt gespeichert.</p>
+        : `<p class="muted">Schütze deine Geschenkideen vor neugierigen Blicken – mit ${bioOk ? bioName() + ' (und Notfall-Code)' : 'Code'}. Die Daten werden dann verschlüsselt gespeichert.</p>
           <button class="btn" id="lockOn">🔒 Sperre einrichten</button>`}
       </div>
       <h2>App aufs Handy</h2>
@@ -559,9 +561,9 @@
       await enableBio();
     };
     if ($('#pinChange')) $('#pinChange').onclick = async () => {
-      if (!(await confirmPin('Aktuelle PIN'))) return;
-      const pin = await askNewPin('Neue PIN');
-      if (pin) { await Lock.changePin(pin); toast('PIN geändert'); }
+      if (!(await confirmPin('Aktueller Code'))) return;
+      const pin = await askNewPin('Neuer Code');
+      if (pin) { await Lock.changePin(pin); toast('Code geändert'); }
     };
     if ($('#lockOff')) $('#lockOff').onclick = async () => {
       if (!(await confirmPin('Sperre ausschalten'))) return;
@@ -604,45 +606,74 @@
   async function askNewPin(title) {
     const d = await formDialog({
       title, ok: 'Weiter',
-      text: 'Wähle eine PIN aus 4–8 Ziffern. Sie ist dein Ersatz, falls ' + bioName() + ' nicht klappt. <b>Merk sie dir gut</b> – ohne sie kommt niemand an die verschlüsselten Daten, auch du nicht.',
+      text: 'Wähle einen Code aus 4–8 Ziffern. <b>Merk ihn dir gut</b> – ohne ihn (oder ' + bioName() + ') kommt niemand an die verschlüsselten Daten, auch du nicht.',
       fields: [
-        { name: 'pin', label: 'PIN', type: 'password', inputmode: 'numeric', required: true },
-        { name: 'pin2', label: 'PIN wiederholen', type: 'password', inputmode: 'numeric', required: true },
+        { name: 'pin', label: 'Code', type: 'password', inputmode: 'numeric', required: true },
+        { name: 'pin2', label: 'Code wiederholen', type: 'password', inputmode: 'numeric', required: true },
       ],
     });
     if (!d) return null;
-    if (!/^\d{4,8}$/.test(d.pin)) { toast('Die PIN muss aus 4–8 Ziffern bestehen'); return null; }
-    if (d.pin !== d.pin2) { toast('Die PINs stimmen nicht überein'); return null; }
+    if (!/^\d{4,8}$/.test(d.pin)) { toast('Der Code muss aus 4–8 Ziffern bestehen'); return null; }
+    if (d.pin !== d.pin2) { toast('Die Codes stimmen nicht überein'); return null; }
     return d.pin;
   }
 
-  async function confirmPin(title = 'PIN eingeben') {
-    const d = await formDialog({ title, ok: 'Bestätigen', fields: [{ name: 'pin', label: 'PIN', type: 'password', inputmode: 'numeric', required: true }] });
+  async function confirmPin(title = 'Code eingeben') {
+    const d = await formDialog({ title, ok: 'Bestätigen', fields: [{ name: 'pin', label: 'Code', type: 'password', inputmode: 'numeric', required: true }] });
     if (!d) return false;
     if (await Lock.unlockWithPin(d.pin)) return true;
-    toast('Falsche PIN'); return false;
+    toast('Falscher Code'); return false;
   }
 
   async function enableBio() {
     try { await Lock.enableBiometrics(); toast(`${bioName()} aktiviert ✓`); }
-    catch (e) { console.warn(e); toast(`${bioName()} wurde nicht aktiviert – PIN funktioniert weiterhin`); }
+    catch (e) { console.warn(e); toast(`${bioName()} wurde nicht aktiviert – du kannst es unter „Mehr“ später einschalten`); }
     render();
   }
 
   async function setupLock() {
-    const pin = await askNewPin('App-Sperre einrichten');
+    let useBio = false;
+    if (bioOk) {
+      const choice = await formDialog({
+        title: 'App-Sperre einrichten',
+        text: `Soll die App mit <b>${bioName()}</b> entsperrt werden? Du legst gleich zusätzlich einen Notfall-Code fest – den brauchst du nur, wenn ${bioName()} zweimal nicht klappt.`,
+        ok: `${bioName()} verwenden`,
+        fields: [],
+        extraButton: { value: 'pin', label: 'Nur Code' },
+      });
+      if (choice === null) return;
+      useBio = choice !== 'pin';
+    }
+    const pin = await askNewPin(useBio ? 'Notfall-Code festlegen' : 'Code festlegen');
     if (!pin) return;
     await Lock.setup(pin);
     await Lock.encryptState(state);
     localStorage.removeItem(KEY);
     toast('Sperre aktiv 🔒');
-    if (bioOk) await enableBio(); else render();
+    if (useBio) await enableBio(); else render();
   }
 
   const lockEl = document.getElementById('lock');
   const pinForm = document.getElementById('pinForm');
   const pinInput = document.getElementById('pinInput');
   const bioBtn = document.getElementById('bioBtn');
+
+  const lockMsg = document.getElementById('lockMsg');
+  let bioFails = 0;
+  const MAX_BIO_FAILS = 2;
+
+  function setLockMode() {
+    const bio = Lock.hasBiometrics();
+    const showPin = !bio || bioFails >= MAX_BIO_FAILS;
+    bioBtn.hidden = !bio;
+    bioBtn.classList.toggle('secondary', showPin);
+    bioBtn.textContent = bioFails ? `${bioName()} erneut versuchen` : `Mit ${bioName()} entsperren`;
+    pinForm.hidden = !showPin;
+    lockMsg.textContent = !bio ? 'Gib deinen Code ein'
+      : showPin ? `${bioName()} hat nicht geklappt – entsperre mit deinem Code`
+      : bioFails ? `Nicht erkannt – noch ${MAX_BIO_FAILS - bioFails} Versuch, dann Code` : 'Gesperrt';
+    if (showPin) setTimeout(() => pinInput.focus(), 50);
+  }
 
   function showLock(autoBio = true) {
     if (dialog.open) dialog.close();
@@ -651,8 +682,8 @@
     document.body.classList.add('locked');
     lockEl.hidden = false;
     pinInput.value = '';
-    bioBtn.hidden = !Lock.hasBiometrics();
-    bioBtn.textContent = `Mit ${bioName()} entsperren`;
+    bioFails = 0;
+    setLockMode();
     if (Lock.hasBiometrics() && autoBio) tryBio(true);
   }
 
@@ -665,15 +696,25 @@
     start();
   }
 
-  async function tryBio(silent) {
-    try { if (await Lock.unlockWithBiometrics()) afterUnlock(); }
-    catch (e) { if (!silent) toast(e.name === 'NotAllowedError' ? 'Abgebrochen – du kannst auch die PIN nutzen' : e.message); }
+  let bioBusy = false;
+  async function tryBio(auto) {
+    if (bioBusy) return;
+    bioBusy = true;
+    const started = Date.now();
+    try { if (await Lock.unlockWithBiometrics()) return afterUnlock(); }
+    catch (e) {
+      console.warn(e);
+      // Blockiert der Browser den automatischen Start sofort (ohne Face-ID-Abfrage), zählt das nicht als Fehlversuch
+      const blockedWithoutTap = auto && e.name === 'NotAllowedError' && Date.now() - started < 700;
+      if (!blockedWithoutTap) bioFails++;
+      setLockMode();
+    } finally { bioBusy = false; }
   }
   bioBtn.onclick = () => tryBio(false);
   pinForm.onsubmit = async e => {
     e.preventDefault();
     if (await Lock.unlockWithPin(pinInput.value)) afterUnlock();
-    else { pinInput.value = ''; toast('Falsche PIN'); }
+    else { pinInput.value = ''; toast('Falscher Code'); }
   };
 
   // Im Hintergrund Inhalte verdecken und nach 1 Minute sperren
