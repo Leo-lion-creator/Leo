@@ -8,6 +8,7 @@ Merkt sich Geschenkideen für deine Liebsten und findet Wünsche automatisch in 
 - **Wünsche aus Chats finden**: erkennt Sätze wie „Ich wünsche mir…“, „Hätte so gern…“, „Den X will ich unbedingt“, „Mein X ist kaputt“, Shop-Links u. v. m.
   - WhatsApp-Export (.txt oder .zip, Android & iPhone)
   - Telegram-Export (JSON)
+  - **Screenshots** vom Chat (Texterkennung direkt auf dem Gerät, helles & dunkles Design; eigene Nachrichten rechts werden übersprungen)
   - Eingefügter Text
   - Android: direkt aus WhatsApp per **Teilen → Geschenke** (wenn als App installiert)
 - Vorschläge prüfen, anpassen und mit einem Tipp übernehmen
@@ -17,6 +18,9 @@ Merkt sich Geschenkideen für deine Liebsten und findet Wünsche automatisch in 
 Keine Server, keine Konten, kein Tracking. Chats werden nur durchsucht, wenn du sie selbst auswählst und die Erlaubnis bestätigst. Gespeichert werden nur übernommene Ideen (im `localStorage` des Browsers).
 
 > Warum kein automatisches Mitlesen aller Chats? WhatsApp, Signal & iMessage erlauben das keiner App – der Chat-Export ist der offizielle, sichere Weg.
+
+## Drittanbieter
+`vendor/tesseract/` enthält [Tesseract.js](https://github.com/naptha/tesseract.js) 5.1.1 und deutsche Sprachdaten (Apache-2.0), damit die Texterkennung offline und ohne fremde Server läuft.
 
 ## Starten
 ```bash

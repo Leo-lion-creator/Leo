@@ -90,7 +90,7 @@
     [/\b(?:das|der|die|so\s+(?:ein|eine|einen)\s+\w+)\s+wäre\s+(?:so\s+|echt\s+|mega\s+|voll\s+)?(?:toll|cool|schön|ein\s+traum|genial|perfekt)(.*)/i, 3],
     [/\bich\s+träume?\s+(?:schon\s+lange\s+)?(?:von|davon)\s+(.+)/i, 4],
     [/\bverliebt\s+in\s+(?:diese[nmrs]?|das|den|die)\s+(.+)/i, 3],
-    [/\b(?:mein|meine)\s+(.{2,40}?)\s+(?:ist|sind)\s+(?:total\s+|komplett\s+|schon\s+wieder\s+)?(?:kaputt|hinüber|durch|im\s+eimer)/i, 2],
+    [/\b(?:mein|meine)\s+(.{2,40}?)\s+(?:ist|sind)\s+(?:(?:total|komplett|schon|wieder|auch|leider|jetzt|endgültig|mal\s+wieder)\s+)*(?:kaputt|hinüber|durch|im\s+eimer)/i, 2],
     // Englisch
     [/\bi\s+(?:really\s+)?(?:want|wish\s+i\s+had|would\s+love|'d\s+love)\s+(?:a\s+|an\s+|some\s+|to\s+have\s+)?(.+)/i, 3],
     [/\bon\s+my\s+wish\s*list\b(.*)/i, 5],
@@ -106,7 +106,7 @@
 
   function cleanItem(s) {
     if (!s) return '';
-    s = s.replace(/https?:\/\/\S+/g, '').split(/[.!?\n]|\s(?:aber|weil|denn|oder so)\s/i)[0];
+    s = s.replace(/https?:\/\/\S+/g, '').split(/,\s*(?:mein|meine|meiner|die|der|das|den|weil|aber|denn|ich|und\s+ich|damit|wo|wenn|dann)\b/i)[0].split(/[.!?\n]|\s(?:aber|weil|denn|oder so)\s/i)[0];
     s = s.replace(/^\s*(?:,|:|-)\s*/, '').replace(/^(?:(?:mal|auch|so|ein|eine|einen|einem|einer|eines)\s+)+/i, '').replace(/\s+(?:haben|kaufen|holen|bekommen)\s*$/i, '');
     s = s.replace(/[😀-🙏🌀-🗿🚀-🛿🤀-🧿❤️✨]+/gu, '').trim();
     s = s.charAt(0).toUpperCase() + s.slice(1);
@@ -187,7 +187,46 @@
     return await new Response(stream).text();
   }
 
-  const api = { parseChat, detectWish, findWishes, readZipText, cleanItem };
+  // ---------- Screenshot (OCR-Zeilen → Nachrichten) ----------
+  const OCR_NOISE = [
+    /^(heute|gestern|today|yesterday|online|tippt|schreibt|typing)\b/i,
+    /^zuletzt (online|gesehen)/i, /^last seen/i,
+    /^(mo|di|mi|do|fr|sa|so|montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag)\.?,?\s*\d/i,
+    /^\d{1,2}\.\s*(jan|feb|mär|apr|mai|jun|jul|aug|sep|okt|nov|dez)/i,
+    /^\d{1,2}[.:]\d{2}\s*$/, /^\d{1,3}\s*%$/, /^nachricht$/i, /^message$/i,
+    /ende-zu-ende|end-to-end/i,
+  ];
+  const TRAILING_TIME = /\s*\d{1,2}[:.]\d{2}\s*(?:[vV✓✔/«»%]{1,3}|[A-Za-z]{1,2})?\s*$/;
+
+  /**
+   * lines: [{text, confidence, bbox:{x0,y0,x1,y1}}] aus Tesseract, width = Bildbreite.
+   * Liefert [{sender:'', side:'left'|'right', text}] – rechte Blasen = eigene Nachrichten.
+   */
+  function linesToMessages(lines, width) {
+    const clean = (lines || [])
+      .map(l => ({ ...l, text: String(l.text || '').replace(/\s+/g, ' ').replace(TRAILING_TIME, '').trim() }))
+      .filter(l => l.text.length >= 2 && (l.confidence == null || l.confidence >= 35))
+      .filter(l => !OCR_NOISE.some(re => re.test(l.text)))
+      .sort((a, b) => a.bbox.y0 - b.bbox.y0);
+
+    const messages = [];
+    let cur = null, prev = null;
+    for (const l of clean) {
+      const side = l.bbox.x0 / width > 0.28 ? 'right' : 'left';
+      const h = Math.max(8, l.bbox.y1 - l.bbox.y0);
+      const gap = prev ? l.bbox.y0 - prev.bbox.y1 : Infinity;
+      if (!cur || side !== cur.side || gap > h * 0.9) {
+        cur = { sender: '', side, text: l.text };
+        messages.push(cur);
+      } else {
+        cur.text += (cur.text.endsWith('-') ? '' : ' ') + l.text;
+      }
+      prev = l;
+    }
+    return messages;
+  }
+
+  const api = { parseChat, detectWish, findWishes, readZipText, cleanItem, linesToMessages };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.GiftDetector = api;
 })(typeof self !== 'undefined' ? self : this);

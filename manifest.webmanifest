@@ -20,7 +20,7 @@
       "text": "text",
       "url": "url",
       "files": [
-        { "name": "file", "accept": ["text/plain", ".txt", "application/zip", ".zip", "application/json", ".json"] }
+        { "name": "file", "accept": ["image/*", ".png", ".jpg", ".jpeg", ".webp", "text/plain", ".txt", "application/zip", ".zip", "application/json", ".json"] }
       ]
     }
   }

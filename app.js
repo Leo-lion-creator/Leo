@@ -279,6 +279,18 @@
         <input type="file" id="file" accept=".txt,.zip,.json,text/plain,application/zip,application/json" multiple>
         <label for="paste">…oder Text einfügen</label>
         <textarea id="paste" placeholder="20.11.26, 18:45 - Anna: Ich wünsche mir so sehr eine neue Kaffeemühle!">${esc(importDraft)}</textarea>
+        <label for="shots">📸 …oder Screenshots vom Chat</label>
+        <input type="file" id="shots" accept="image/*" multiple>
+        <div id="shotOpts" hidden>
+          <label for="shotPerson">Mit wem ist der Chat auf den Screenshots?</label>
+          <select id="shotPerson">
+            <option value="">Später zuordnen</option>
+            ${state.persons.map(p => `<option value="${esc(p.name)}">${esc(p.name)}</option>`).join('')}
+          </select>
+          <label class="check"><input type="checkbox" id="skipRight" checked>
+            <span>Meine eigenen Nachrichten (Blasen rechts) überspringen</span></label>
+          <p class="muted">Die Texterkennung läuft auf deinem Gerät. Das erste Mal dauert sie etwas länger.</p>
+        </div>
         <label for="myName">Dein eigener Name im Chat</label>
         <input id="myName" value="${esc(s.myNames.join(', '))}" placeholder="z. B. Jana (deine eigenen Nachrichten werden übersprungen)">
         <label class="check"><input type="checkbox" id="consent" ${s.consent ? 'checked' : ''}>
@@ -287,6 +299,8 @@
       </div>`;
     const paste = view.querySelector('#paste');
     paste.oninput = () => { importDraft = paste.value; };
+    const shots = view.querySelector('#shots');
+    shots.onchange = () => { view.querySelector('#shotOpts').hidden = !shots.files.length; };
     view.querySelector('#scan').onclick = async () => {
       const consent = view.querySelector('#consent').checked;
       if (!consent) return toast('Bitte erst die Erlaubnis bestätigen ☝️');
@@ -294,12 +308,19 @@
       s.myNames = view.querySelector('#myName').value.split(',').map(x => x.trim()).filter(Boolean);
       save();
       const texts = [];
-      for (const f of view.querySelector('#file').files) {
-        try { texts.push({ text: await readFile(f), name: f.name }); }
-        catch (e) { toast(`${f.name}: ${e.message}`); }
-      }
+      const scanBtn = view.querySelector('#scan');
+      const files = [...view.querySelector('#file').files, ...shots.files];
+      const shotSender = view.querySelector('#shotPerson')?.value || '';
+      const skipRight = view.querySelector('#skipRight')?.checked ?? true;
+      scanBtn.disabled = true;
+      try {
+        for (const f of files) {
+          try { texts.push(await readSource(f, { sender: shotSender, skipRight, progress: t => { scanBtn.textContent = t; } })); }
+          catch (e) { console.error(e); toast(`${f.name}: ${e.message}`); }
+        }
+      } finally { scanBtn.disabled = false; scanBtn.textContent = '🔍 Wünsche finden'; }
       if (paste.value.trim()) texts.push({ text: paste.value, name: 'Eingefügter Text' });
-      if (!texts.length) return toast('Wähle eine Datei oder füge Text ein');
+      if (!texts.length) return toast('Wähle eine Datei, Screenshots oder füge Text ein');
       scanTexts(texts);
     };
   }
@@ -311,6 +332,72 @@
     return new TextDecoder().decode(buf);
   }
 
+  const isImage = f => /^image\//.test(f.type) || /\.(png|jpe?g|webp|heic|gif|bmp)$/i.test(f.name || '');
+
+  /** Datei → {text,name} oder {messages,name} (Screenshots) */
+  async function readSource(file, opts = {}) {
+    if (!isImage(file)) return { text: await readFile(file), name: file.name };
+    const messages = await ocrScreenshot(file, opts.progress, opts.index);
+    return {
+      name: file.name,
+      messages: messages
+        .filter(m => !(opts.skipRight && m.side === 'right'))
+        .map(m => ({ sender: opts.sender || '', date: null, text: m.text })),
+    };
+  }
+
+  // ---------- Texterkennung (Tesseract.js, lokal im Ordner vendor/) ----------
+  let ocrWorker = null;
+  function loadScript(src) {
+    return new Promise((res, rej) => {
+      const s = Object.assign(document.createElement('script'), { src, onload: res, onerror: () => rej(new Error('Texterkennung konnte nicht geladen werden')) });
+      document.head.appendChild(s);
+    });
+  }
+  let ocrProgress = () => {};
+  async function getOcr() {
+    if (ocrWorker) return ocrWorker;
+    if (!window.Tesseract) await loadScript('vendor/tesseract/tesseract.min.js');
+    const abs = p => new URL(p, location.href).href;
+    ocrWorker = await window.Tesseract.createWorker('deu', 1, {
+      workerPath: abs('vendor/tesseract/worker.min.js'),
+      corePath: abs('vendor/tesseract/core'),
+      langPath: abs('vendor/tesseract/lang'),
+      gzip: true,
+      logger: m => ocrProgress(m),
+    });
+    return ocrWorker;
+  }
+
+  /** Bild vorbereiten: Graustufen, dunkles Design invertieren, kleine Bilder vergrößern */
+  async function prepareImage(file) {
+    const bmp = await createImageBitmap(file);
+    const scale = bmp.width < 900 ? 2 : 1;
+    const c = document.createElement('canvas');
+    c.width = bmp.width * scale; c.height = bmp.height * scale;
+    const ctx = c.getContext('2d', { willReadFrequently: true });
+    ctx.drawImage(bmp, 0, 0, c.width, c.height);
+    const img = ctx.getImageData(0, 0, c.width, c.height);
+    const d = img.data; let sum = 0;
+    for (let i = 0; i < d.length; i += 4) { const g = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]; d[i] = d[i + 1] = d[i + 2] = g; sum += g; }
+    if (sum / (d.length / 4) < 110) for (let i = 0; i < d.length; i += 4) d[i] = d[i + 1] = d[i + 2] = 255 - d[i];
+    ctx.putImageData(img, 0, 0);
+    return c;
+  }
+
+  async function ocrScreenshot(file, progress = () => {}) {
+    progress('⏳ Texterkennung wird geladen…');
+    ocrProgress = m => {
+      if (m.status === 'recognizing text') progress(`📸 Lese ${file.name.slice(0, 18)}… ${Math.round(m.progress * 100)} %`);
+    };
+    const worker = await getOcr();
+    const canvas = await prepareImage(file);
+    const { data } = await worker.recognize(canvas);
+    const lines = data.lines && data.lines.length ? data.lines
+      : (data.text || '').split('\n').map((text, i) => ({ text, confidence: 90, bbox: { x0: 0, y0: i * 40, x1: canvas.width, y1: i * 40 + 30 } }));
+    return D.linesToMessages(lines, canvas.width);
+  }
+
   function chatNameFrom(fileName) {
     const m = (fileName || '').match(/(?:WhatsApp[- ]Chat (?:mit|with) )(.+?)\.(?:txt|zip)$/i);
     return m ? m[1].trim() : '';
@@ -319,18 +406,20 @@
   function scanTexts(texts) {
     let total = 0;
     const candidates = [];
-    for (const { text, name } of texts) {
-      const msgs = D.parseChat(text, name);
+    for (const src of texts) {
+      const { text, name } = src;
+      const msgs = src.messages || D.parseChat(text, name);
       total += msgs.length;
       const fallbackSender = chatNameFrom(name);
       for (const w of D.findWishes(msgs, state.settings.myNames)) {
         const sender = w.sender || fallbackSender;
         const h = hash(sender + '|' + w.text);
+        if (candidates.some(c => c.key === h)) continue; // z. B. überlappende Screenshots
         candidates.push({
           key: h, sender, item: w.item, text: w.text, date: w.date, score: w.score,
           include: w.score >= 3 && !state.seen.includes(h),
           already: state.seen.includes(h),
-          personId: findPersonByName(sender)?.id || (sender ? 'new' : (state.persons[0]?.id || 'new')),
+          personId: findPersonByName(sender)?.id || 'new',
         });
       }
     }
@@ -457,10 +546,12 @@
     window.history.replaceState(null, '', location.pathname);
     const inbox = await caches.open('share-inbox');
     const texts = [];
-    const fileRes = await inbox.match('file');
-    if (fileRes) {
-      const name = decodeURIComponent(fileRes.headers.get('x-file-name') || 'chat.txt');
-      try { texts.push({ text: await readFile(new File([await fileRes.blob()], name)), name }); }
+    for (const req of await inbox.keys()) {
+      if (!/\/file-\d+$/.test(new URL(req.url).pathname)) continue;
+      const res = await inbox.match(req);
+      const name = decodeURIComponent(res.headers.get('x-file-name') || 'chat.txt');
+      const blob = await res.blob();
+      try { texts.push(await readSource(new File([blob], name, { type: blob.type }), { skipRight: true, progress: toast })); }
       catch (e) { toast(e.message); }
     }
     const textRes = await inbox.match('text');

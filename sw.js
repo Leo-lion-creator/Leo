@@ -1,5 +1,5 @@
 /* Service Worker: offline-fähig + Empfang von geteilten Chats (Android „Teilen“) */
-const CACHE = 'geschenke-v1';
+const CACHE = 'geschenke-v2';
 const SHELL = ['./', 'index.html', 'styles.css', 'app.js', 'detector.js', 'manifest.webmanifest', 'icon.svg'];
 
 self.addEventListener('install', e => {
@@ -23,9 +23,11 @@ self.addEventListener('fetch', e => {
       const inbox = await caches.open('share-inbox');
       const text = [form.get('title'), form.get('text'), form.get('url')].filter(Boolean).join('\n');
       if (text) await inbox.put('text', new Response(text));
-      const file = form.get('file');
-      if (file && typeof file !== 'string') {
-        await inbox.put('file', new Response(file, { headers: { 'x-file-name': encodeURIComponent(file.name || 'chat.txt') } }));
+      const files = form.getAll('file').filter(f => f && typeof f !== 'string');
+      for (let i = 0; i < files.length; i++) {
+        await inbox.put(`file-${i}`, new Response(files[i], {
+          headers: { 'x-file-name': encodeURIComponent(files[i].name || 'chat.txt'), 'content-type': files[i].type || 'application/octet-stream' },
+        }));
       }
       return Response.redirect('./?shared=1', 303);
     })());
