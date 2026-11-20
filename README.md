@@ -13,6 +13,7 @@ Merkt sich Geschenkideen für deine Liebsten und findet Wünsche automatisch in 
   - Android: direkt aus WhatsApp per **Teilen → Geschenke** (wenn als App installiert)
 - Vorschläge prüfen, anpassen und mit einem Tipp übernehmen
 - **Online finden**: passende Shops/Websites je Idee (Amazon, idealo, Zalando, Thalia, Booking.com, Eventim, Etsy …) – Kategorie, Farbe und Größe werden aus Titel und Notiz erkannt, gespeicherte Links stehen vorne
+- **Willkommen beim ersten Start**: bietet direkt an, die Sperre mit Face ID und Code einzurichten (oder „Später“)
 - **App-Sperre**: Face ID / Touch ID / Fingerabdruck startet beim Öffnen sofort (Passkey/WebAuthn); erst nach 2 Fehlversuchen erscheint der Notfall-Code. Wer „Nur Code“ wählt, entsperrt direkt per Code und kann Face ID später unter „Mehr“ einschalten. Ist Face ID auf dem Gerät noch gar nicht eingerichtet, führt die App Schritt für Schritt durch die Geräte-Einstellungen und prüft danach, ob es klappt. Daten werden mit AES-256 verschlüsselt, nach 1 Minute im Hintergrund wird gesperrt
 - Sicherung/Wiederherstellung als JSON, funktioniert offline
 

@@ -140,13 +140,15 @@ a.shop { text-decoration: none; color: var(--text); background: var(--surface-2)
 a.shop.saved { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
 
 /* Sperre */
-#lock { position: fixed; inset: 0; z-index: 50; background: var(--bg); display: grid; place-items: center; padding: 24px 16px; }
-#lock[hidden], #lock form[hidden] { display: none; }
+#lock, #welcome { position: fixed; inset: 0; z-index: 50; background: var(--bg); display: grid; place-items: center; padding: 24px 16px; }
+#lock[hidden], #lock form[hidden], #welcome[hidden] { display: none; }
+#welcome .btn { margin-top: 8px; }
+.small-note { font-size: .82rem; margin-top: 12px; }
 #lock .btn.secondary { margin-bottom: 4px; }
 .lock-box { width: 100%; max-width: 320px; text-align: center; }
 .lock-icon { font-size: 3rem; }
 .lock-title { text-transform: none; letter-spacing: 0; color: var(--text); font-size: 1.2rem; margin: 8px 0 2px; }
 #lock form { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
 #lock input { text-align: center; font-size: 1.3rem; letter-spacing: .3em; }
-body.locked .tabs, body.locked .top, body.locked main { display: none; }
+body.locked .tabs, body.locked .top, body.locked main, body.welcome .tabs, body.welcome .top, body.welcome main { display: none; }
 body.covered main, body.covered .tabs { visibility: hidden; }

@@ -866,5 +866,31 @@
     navigator.serviceWorker.register('sw.js').catch(() => {});
   }
   function start() { checkSharedInbox().then(handled => { if (!handled) render(); }); }
-  if (Lock.isEnabled()) showLock(); else start();
+  // ---------- Erster Start: Sperre anbieten ----------
+  function showWelcome() {
+    const el = document.getElementById('welcome');
+    document.getElementById('welcomeLockText').textContent =
+      `Damit niemand heimlich reinschaut, kannst du die App gleich mit ${bioName()} und einem Code sperren.`;
+    document.getElementById('welcomeLock').textContent = `🔒 Mit ${bioName()} sperren`;
+    document.body.classList.add('welcome');
+    el.hidden = false;
+    const finish = () => {
+      el.hidden = true;
+      document.body.classList.remove('welcome');
+      start();
+    };
+    document.getElementById('welcomeSkip').onclick = () => {
+      state.settings.onboarded = true; save(); finish();
+    };
+    document.getElementById('welcomeLock').onclick = async () => {
+      state.settings.onboarded = true;
+      await setupLock();
+      if (Lock.isEnabled()) return finish();
+      state.settings.onboarded = false; // abgebrochen → Willkommen bleibt stehen
+    };
+  }
+
+  if (Lock.isEnabled()) showLock();
+  else if (!state.settings.onboarded) Lock.biometricsAvailable().then(v => { bioOk = v; showWelcome(); });
+  else start();
 })();
