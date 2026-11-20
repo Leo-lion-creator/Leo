@@ -26,10 +26,25 @@
     <button data-tab="settings"><span>⚙️</span>Mehr</button>
   </nav>
 
+  <div id="lock" hidden>
+    <div class="lock-box">
+      <div class="lock-icon">🔒</div>
+      <h2 class="lock-title">Geschenke-Gedächtnis</h2>
+      <p class="muted">Gesperrt</p>
+      <button class="btn block" id="bioBtn" hidden>Entsperren</button>
+      <form id="pinForm">
+        <input id="pinInput" type="password" inputmode="numeric" autocomplete="off" placeholder="PIN" aria-label="PIN">
+        <button class="btn secondary block">Mit PIN entsperren</button>
+      </form>
+    </div>
+  </div>
+
   <dialog id="dialog"><form method="dialog" id="dialogForm"></form></dialog>
   <div id="toast" role="status" aria-live="polite"></div>
 
   <script src="detector.js"></script>
+  <script src="shops.js"></script>
+  <script src="lock.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

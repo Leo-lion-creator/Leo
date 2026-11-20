@@ -12,6 +12,8 @@ Merkt sich Geschenkideen für deine Liebsten und findet Wünsche automatisch in 
   - Eingefügter Text
   - Android: direkt aus WhatsApp per **Teilen → Geschenke** (wenn als App installiert)
 - Vorschläge prüfen, anpassen und mit einem Tipp übernehmen
+- **Online finden**: passende Shops/Websites je Idee (Amazon, idealo, Zalando, Thalia, Booking.com, Eventim, Etsy …) – Kategorie, Farbe und Größe werden aus Titel und Notiz erkannt, gespeicherte Links stehen vorne
+- **App-Sperre** mit Face ID / Touch ID / Fingerabdruck (Passkey/WebAuthn) und PIN als Ersatz; Daten werden mit AES-256 verschlüsselt, nach 1 Minute im Hintergrund wird gesperrt
 - Sicherung/Wiederherstellung als JSON, funktioniert offline
 
 ## Datenschutz

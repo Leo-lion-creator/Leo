@@ -128,3 +128,24 @@ dialog h3 { margin: 0 0 8px; }
   opacity: 0; pointer-events: none; transition: .25s; max-width: calc(100vw - 32px); text-align: center; z-index: 20;
 }
 #toast.show { opacity: 1; transform: translateX(-50%); }
+
+/* Shops */
+.shops { margin-top: 8px; }
+.shops summary { cursor: pointer; color: var(--accent); font-size: .9rem; font-weight: 600; list-style: none; }
+.shops summary::-webkit-details-marker { display: none; }
+.shops summary::before { content: '🔍 '; }
+.shops[open] summary { margin-bottom: 8px; }
+.shop-list { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
+a.shop { text-decoration: none; color: var(--text); background: var(--surface-2); border-radius: 999px; padding: 6px 12px; font-size: .88rem; }
+a.shop.saved { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+
+/* Sperre */
+#lock { position: fixed; inset: 0; z-index: 50; background: var(--bg); display: grid; place-items: center; padding: 24px 16px; }
+#lock[hidden] { display: none; }
+.lock-box { width: 100%; max-width: 320px; text-align: center; }
+.lock-icon { font-size: 3rem; }
+.lock-title { text-transform: none; letter-spacing: 0; color: var(--text); font-size: 1.2rem; margin: 8px 0 2px; }
+#lock form { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+#lock input { text-align: center; font-size: 1.3rem; letter-spacing: .3em; }
+body.locked .tabs, body.locked .top, body.locked main { display: none; }
+body.covered main, body.covered .tabs { visibility: hidden; }

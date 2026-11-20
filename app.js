@@ -2,12 +2,15 @@
 (function () {
   'use strict';
   const D = window.GiftDetector;
+  const S = window.GiftShops;
+  const Lock = window.GiftLock;
   const KEY = 'geschenke-gedaechtnis-v1';
   const STATUS = { idea: { icon: '', label: 'Idee' }, bought: { icon: '🛍️', label: 'Gekauft' }, given: { icon: '✓', label: 'Verschenkt' } };
   const NEXT_STATUS = { idea: 'bought', bought: 'given', given: 'idea' };
 
   // ---------- Speicher ----------
   function load() {
+    if (Lock.isEnabled()) return blank(); // wird nach dem Entsperren entschlüsselt geladen
     try {
       const s = JSON.parse(localStorage.getItem(KEY));
       if (s && Array.isArray(s.persons)) return Object.assign(blank(), s);
@@ -16,6 +19,10 @@
   }
   function blank() { return { persons: [], ideas: [], settings: { myNames: [], consent: false }, seen: [] }; }
   function save() {
+    if (Lock.isEnabled()) {
+      if (Lock.isUnlocked()) Lock.encryptState(state).catch(() => toast('Speichern nicht möglich'));
+      return;
+    }
     try { localStorage.setItem(KEY, JSON.stringify(state)); }
     catch (e) { toast('Speichern nicht möglich – ist der Speicher voll oder privat?'); }
   }
@@ -71,7 +78,7 @@
             ? `<select id="f_${f.name}" name="${f.name}">${f.options.map(o => `<option value="${esc(o.value)}" ${o.value === f.value ? 'selected' : ''}>${esc(o.label)}</option>`).join('')}</select>`
             : f.type === 'textarea'
               ? `<textarea id="f_${f.name}" name="${f.name}" placeholder="${esc(f.placeholder || '')}">${esc(f.value || '')}</textarea>`
-              : `<input id="f_${f.name}" name="${f.name}" type="${f.type || 'text'}" value="${esc(f.value || '')}" placeholder="${esc(f.placeholder || '')}" ${f.required ? 'required' : ''}>`}
+              : `<input id="f_${f.name}" name="${f.name}" type="${f.type || 'text'}" value="${esc(f.value || '')}" placeholder="${esc(f.placeholder || '')}" ${f.required ? 'required' : ''} ${f.inputmode ? `inputmode="${f.inputmode}" autocomplete="off"` : ''}>`}
         `).join('')}
         <div class="actions">
           <button class="btn ${danger ? 'danger' : ''}" value="ok">${esc(ok)}</button>
@@ -207,9 +214,17 @@
         <div class="title">${esc(i.title)}</div>
         <div class="sub">${showPerson && person ? `für ${esc(person.name)} · ` : ''}${STATUS[st].label}${i.source === 'chat' ? ' · aus Chat' : ''}${i.date ? ' · ' + fmtDate(i.date) : ''}</div>
         ${i.note ? `<div class="quote">${linkify(i.note)}</div>` : ''}
+        ${st !== 'given' ? shopLinks(i) : ''}
       </div>
       <button class="btn secondary small" data-edit="${i.id}">✎</button>
     </div>`;
+  }
+  function shopLinks(i) {
+    const list = S.suggestShops(i);
+    if (!list.length) return '';
+    return `<details class="shops"><summary>Online finden</summary><div class="shop-list">
+      ${list.map(s => `<a class="shop ${s.saved ? 'saved' : ''}" href="${esc(s.url)}" target="_blank" rel="noopener noreferrer">${esc(s.name)} ↗</a>`).join('')}
+      </div><div class="sub">Suche nach „${esc(S.buildQuery(i))}“ – Begriff über ✎ änderbar.</div></details>`;
   }
   function bindIdeaCards() {
     view.querySelectorAll('[data-toggle]').forEach(b => b.onclick = () => {
@@ -228,7 +243,8 @@
         { name: 'title', label: 'Was?', value: idea?.title, required: true, placeholder: 'z. B. Kaffeemühle' },
         { name: 'personId', label: 'Für wen?', type: 'select', value: idea?.personId || personId, options: state.persons.map(p => ({ value: p.id, label: p.name })) },
         { name: 'status', label: 'Status', type: 'select', value: idea?.status || 'idea', options: Object.entries(STATUS).map(([value, s]) => ({ value, label: s.label })) },
-        { name: 'note', label: 'Notiz / Link / Chat-Zitat', type: 'textarea', value: idea?.note },
+        { name: 'note', label: 'Notiz / Link / Chat-Zitat', type: 'textarea', value: idea?.note, placeholder: 'z. B. Farbe, Größe, Marke oder ein Link' },
+        { name: 'search', label: 'Suchbegriff für Shops (optional)', value: idea?.search, placeholder: idea ? S.buildQuery({ ...idea, search: '' }) : 'wird automatisch gewählt' },
       ],
     });
     if (!data || !data.title) return;
@@ -502,13 +518,27 @@
   // ---------- Einstellungen ----------
   function renderSettings() {
     titleEl.textContent = 'Mehr';
+    const on = Lock.isEnabled();
     view.innerHTML = `
+      <h2>App-Sperre</h2>
+      <div class="card">
+        ${on ? `<p><b>🔒 Aktiv</b> – Daten sind verschlüsselt gespeichert.<br>
+            <span class="muted">PIN ✓ · ${bioName()} ${Lock.hasBiometrics() ? '✓' : '–'} · sperrt nach 1 Min. im Hintergrund</span></p>
+          <div class="actions" style="margin-top:0">
+            <button class="btn small" id="lockNow">Jetzt sperren</button>
+            ${bioOk ? `<button class="btn secondary small" id="bioToggle">${bioName()} ${Lock.hasBiometrics() ? 'ausschalten' : 'einschalten'}</button>` : ''}
+            <button class="btn secondary small" id="pinChange">PIN ändern</button>
+            <button class="btn danger small" id="lockOff">Sperre ausschalten</button>
+          </div>`
+        : `<p class="muted">Schütze deine Geschenkideen vor neugierigen Blicken – mit ${bioOk ? bioName() + ' und ' : ''}PIN. Die Daten werden dann verschlüsselt gespeichert.</p>
+          <button class="btn" id="lockOn">🔒 Sperre einrichten</button>`}
+      </div>
       <h2>App aufs Handy</h2>
       <div class="card"><p><b>Android (Chrome):</b> Menü ⋮ → „App installieren“. Danach taucht „Geschenke“ beim Teilen von WhatsApp-Chats auf.</p>
         <p style="margin:0"><b>iPhone (Safari):</b> Teilen-Symbol → „Zum Home-Bildschirm“.</p></div>
       <h2>Datensicherung</h2>
       <div class="card">
-        <p class="muted">Deine Daten liegen nur in diesem Browser. Sichere sie ab und zu als Datei.</p>
+        <p class="muted">Deine Daten liegen nur in diesem Browser. Sichere sie ab und zu als Datei.${on ? ' Die Sicherungsdatei ist <b>nicht</b> verschlüsselt – bewahre sie gut auf.' : ''}</p>
         <div class="actions" style="margin-top:0">
           <button class="btn secondary" id="export">⬇️ Sichern</button>
           <label class="btn secondary" style="margin:0">⬆️ Wiederherstellen<input type="file" id="restore" accept=".json" hidden></label>
@@ -520,6 +550,23 @@
         <button class="btn danger small" id="wipe">Alle Daten löschen</button></div></div>
       <p class="muted" style="text-align:center">${state.persons.length} Personen · ${state.ideas.length} Ideen</p>`;
 
+    const $ = id => view.querySelector(id);
+    if ($('#lockOn')) $('#lockOn').onclick = setupLock;
+    if ($('#lockNow')) $('#lockNow').onclick = () => { Lock.lock(); showLock(false); };
+    if ($('#bioToggle')) $('#bioToggle').onclick = async () => {
+      if (Lock.hasBiometrics()) { await Lock.disableBiometrics(); toast(`${bioName()} ausgeschaltet`); return render(); }
+      if (!Lock.keyIsExtractable() && !(await confirmPin())) return;
+      await enableBio();
+    };
+    if ($('#pinChange')) $('#pinChange').onclick = async () => {
+      if (!(await confirmPin('Aktuelle PIN'))) return;
+      const pin = await askNewPin('Neue PIN');
+      if (pin) { await Lock.changePin(pin); toast('PIN geändert'); }
+    };
+    if ($('#lockOff')) $('#lockOff').onclick = async () => {
+      if (!(await confirmPin('Sperre ausschalten'))) return;
+      await Lock.disable(); save(); toast('Sperre ausgeschaltet'); render();
+    };
     view.querySelector('#export').onclick = () => {
       const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
       const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: `geschenke-backup-${new Date().toISOString().slice(0, 10)}.json` });
@@ -539,6 +586,103 @@
       state = blank(); save(); toast('Alles gelöscht'); render();
     };
   }
+
+  // ---------- App-Sperre ----------
+  let bioOk = false;
+  Lock.biometricsAvailable().then(v => { bioOk = v; if (route.name === 'settings' && !document.body.classList.contains('locked')) render(); });
+
+  function bioName() {
+    const ua = navigator.userAgent;
+    const iOS = /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
+    if (iOS) return 'Face ID';
+    if (/Macintosh/.test(ua)) return 'Touch ID';
+    if (/Android/.test(ua)) return 'Fingerabdruck';
+    if (/Windows/.test(ua)) return 'Windows Hello';
+    return 'Biometrie';
+  }
+
+  async function askNewPin(title) {
+    const d = await formDialog({
+      title, ok: 'Weiter',
+      text: 'Wähle eine PIN aus 4–8 Ziffern. Sie ist dein Ersatz, falls ' + bioName() + ' nicht klappt. <b>Merk sie dir gut</b> – ohne sie kommt niemand an die verschlüsselten Daten, auch du nicht.',
+      fields: [
+        { name: 'pin', label: 'PIN', type: 'password', inputmode: 'numeric', required: true },
+        { name: 'pin2', label: 'PIN wiederholen', type: 'password', inputmode: 'numeric', required: true },
+      ],
+    });
+    if (!d) return null;
+    if (!/^\d{4,8}$/.test(d.pin)) { toast('Die PIN muss aus 4–8 Ziffern bestehen'); return null; }
+    if (d.pin !== d.pin2) { toast('Die PINs stimmen nicht überein'); return null; }
+    return d.pin;
+  }
+
+  async function confirmPin(title = 'PIN eingeben') {
+    const d = await formDialog({ title, ok: 'Bestätigen', fields: [{ name: 'pin', label: 'PIN', type: 'password', inputmode: 'numeric', required: true }] });
+    if (!d) return false;
+    if (await Lock.unlockWithPin(d.pin)) return true;
+    toast('Falsche PIN'); return false;
+  }
+
+  async function enableBio() {
+    try { await Lock.enableBiometrics(); toast(`${bioName()} aktiviert ✓`); }
+    catch (e) { console.warn(e); toast(`${bioName()} wurde nicht aktiviert – PIN funktioniert weiterhin`); }
+    render();
+  }
+
+  async function setupLock() {
+    const pin = await askNewPin('App-Sperre einrichten');
+    if (!pin) return;
+    await Lock.setup(pin);
+    await Lock.encryptState(state);
+    localStorage.removeItem(KEY);
+    toast('Sperre aktiv 🔒');
+    if (bioOk) await enableBio(); else render();
+  }
+
+  const lockEl = document.getElementById('lock');
+  const pinForm = document.getElementById('pinForm');
+  const pinInput = document.getElementById('pinInput');
+  const bioBtn = document.getElementById('bioBtn');
+
+  function showLock(autoBio = true) {
+    if (dialog.open) dialog.close();
+    state = blank(); pendingCandidates = null; navStack.length = 0; route = { name: 'home' };
+    view.innerHTML = '';
+    document.body.classList.add('locked');
+    lockEl.hidden = false;
+    pinInput.value = '';
+    bioBtn.hidden = !Lock.hasBiometrics();
+    bioBtn.textContent = `Mit ${bioName()} entsperren`;
+    if (Lock.hasBiometrics() && autoBio) tryBio(true);
+  }
+
+  async function afterUnlock() {
+    try { state = Object.assign(blank(), (await Lock.decryptState()) || {}); }
+    catch (e) { Lock.lock(); toast('Daten konnten nicht entschlüsselt werden'); return; }
+    lockEl.hidden = true;
+    document.body.classList.remove('locked');
+    document.querySelectorAll('.tabs button').forEach(b => b.classList.toggle('active', b.dataset.tab === 'home'));
+    start();
+  }
+
+  async function tryBio(silent) {
+    try { if (await Lock.unlockWithBiometrics()) afterUnlock(); }
+    catch (e) { if (!silent) toast(e.name === 'NotAllowedError' ? 'Abgebrochen – du kannst auch die PIN nutzen' : e.message); }
+  }
+  bioBtn.onclick = () => tryBio(false);
+  pinForm.onsubmit = async e => {
+    e.preventDefault();
+    if (await Lock.unlockWithPin(pinInput.value)) afterUnlock();
+    else { pinInput.value = ''; toast('Falsche PIN'); }
+  };
+
+  // Im Hintergrund Inhalte verdecken und nach 1 Minute sperren
+  let hiddenAt = 0;
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) { hiddenAt = Date.now(); document.body.classList.add('covered'); return; }
+    document.body.classList.remove('covered');
+    if (Lock.isEnabled() && Lock.isUnlocked() && Date.now() - hiddenAt > 60000) { Lock.lock(); showLock(); }
+  });
 
   // ---------- Geteilte Inhalte (Android Share Target) ----------
   async function checkSharedInbox() {
@@ -571,5 +715,6 @@
   if ('serviceWorker' in navigator && location.protocol !== 'file:') {
     navigator.serviceWorker.register('sw.js').catch(() => {});
   }
-  checkSharedInbox().then(handled => { if (!handled) render(); });
+  function start() { checkSharedInbox().then(handled => { if (!handled) render(); }); }
+  if (Lock.isEnabled()) showLock(); else start();
 })();

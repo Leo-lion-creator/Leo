@@ -1,6 +1,6 @@
 /* Service Worker: offline-fähig + Empfang von geteilten Chats (Android „Teilen“) */
-const CACHE = 'geschenke-v2';
-const SHELL = ['./', 'index.html', 'styles.css', 'app.js', 'detector.js', 'manifest.webmanifest', 'icon.svg'];
+const CACHE = 'geschenke-v3';
+const SHELL = ['./', 'index.html', 'styles.css', 'app.js', 'detector.js', 'shops.js', 'lock.js', 'manifest.webmanifest', 'icon.svg'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));
