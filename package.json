@@ -1,0 +1,28 @@
+{
+  "name": "ai-video-editor",
+  "version": "0.1.0",
+  "description": "Animierte Reels aus einer Zeile Text – mit Claude Code, Node, ElevenLabs und ffmpeg",
+  "scripts": {
+    "check": "node src/check-setup.mjs",
+    "voice": "node src/voice.mjs",
+    "render": "node src/render.mjs",
+    "preview": "node src/render.mjs --preview",
+    "make": "node src/make.mjs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Leo-lion-creator/Leo.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Leo-lion-creator/Leo/issues"
+  },
+  "homepage": "https://github.com/Leo-lion-creator/Leo#readme",
+  "dependencies": {
+    "@napi-rs/canvas": "^0.1.65"
+  },
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20.12"
+  }
+}

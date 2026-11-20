@@ -1,0 +1,41 @@
+{
+  "title": "Warum Flugzeugessen so fade schmeckt",
+  "theme": { "accent": "#E0262B" },
+  "scenes": [
+    {
+      "label": "hook",
+      "type": "title",
+      "headline": "Warum schmeckt *Flugzeugessen* so fade?",
+      "stamp": "NICHT DIE KÜCHE",
+      "voiceover": "Warum schmeckt Essen im Flugzeug so fade? Die Küche ist nicht schuld."
+    },
+    {
+      "label": "der grund",
+      "type": "stat",
+      "headline": "Deine *Zunge* verliert an Bord",
+      "stat": { "value": 30, "suffix": "%", "caption": "weniger Geschmack für Salz und Süßes" },
+      "voiceover": "In zehntausend Metern Höhe schmeckst du Salz und Süßes bis zu dreißig Prozent schwächer."
+    },
+    {
+      "label": "drei ursachen",
+      "type": "list",
+      "headline": "Schuld sind *drei* Dinge",
+      "items": ["Trockene Kabinenluft", "Niedriger Luftdruck", "Lautes Triebwerk"],
+      "voiceover": "Schuld sind drei Dinge: trockene Luft, niedriger Druck und der Lärm der Triebwerke."
+    },
+    {
+      "label": "der trick",
+      "type": "text",
+      "headline": "Deshalb würzen Airlines *extra stark*",
+      "body": "Mehr Salz, mehr Soße – und Tomatensaft schmeckt plötzlich richtig gut.",
+      "voiceover": "Deshalb würzen Airlines extra stark. Und deshalb schmeckt Tomatensaft im Flugzeug plötzlich so gut."
+    },
+    {
+      "label": "outro",
+      "type": "title",
+      "headline": "Folge für mehr *Alltags-Wissen*",
+      "stamp": "FOLGEN",
+      "voiceover": "Folge mir für mehr Alltagswissen."
+    }
+  ]
+}
