@@ -530,6 +530,7 @@
             <button class="btn small" id="lockNow">Jetzt sperren</button>
             ${bioOk ? `<button class="btn secondary small" id="bioToggle">${bioName()} ${Lock.hasBiometrics() ? 'ausschalten' : 'einschalten'}</button>` : ''}
             <button class="btn secondary small" id="pinChange">Code ändern</button>
+            ${bioOk ? '' : `<p class="muted" style="width:100%;margin:4px 0 0">${bioName()} ist in diesem Browser gerade nicht verfügbar.</p>`}
             <button class="btn danger small" id="lockOff">Sperre ausschalten</button>
           </div>`
         : `<p class="muted">Schütze deine Geschenkideen vor neugierigen Blicken – mit ${bioOk ? bioName() + ' (und Notfall-Code)' : 'Code'}. Die Daten werden dann verschlüsselt gespeichert.</p>
@@ -625,10 +626,44 @@
     toast('Falscher Code'); return false;
   }
 
-  async function enableBio() {
-    try { await Lock.enableBiometrics(); toast(`${bioName()} aktiviert ✓`); }
-    catch (e) { console.warn(e); toast(`${bioName()} wurde nicht aktiviert – du kannst es unter „Mehr“ später einschalten`); }
-    render();
+  function bioError(e) {
+    switch (e && e.name) {
+      case 'NotAllowedError': return `Abgebrochen oder vom Gerät nicht erlaubt. Prüfe in den iPad-Einstellungen unter „Passwörter“ bzw. „Apple-ID → iCloud → Passwörter und Schlüsselbund“, ob das Sichern von Passkeys erlaubt ist, und nutze kein privates Surfen.`;
+      case 'InvalidStateError': return 'Für diese App ist auf dem Gerät schon ein Passkey gespeichert. Lösche ihn unter Einstellungen → Passwörter und versuche es erneut.';
+      case 'SecurityError': return 'Diese Adresse darf keinen Passkey anlegen. Öffne die App über https://leo-lion-creator.github.io/Leo/.';
+      case 'NotSupportedError': return 'Dieses Gerät oder dieser Browser unterstützt das nicht.';
+      default: return (e && e.message) || 'Unbekannter Fehler';
+    }
+  }
+
+  /** Eigener Schritt mit Knopf: Safari erlaubt Face ID nur direkt nach einem Antippen */
+  function enableBio() {
+    return new Promise(resolve => {
+      let done = false;
+      dialogForm.innerHTML = `
+        <h3>${bioName()} aktivieren</h3>
+        <p class="muted" id="bioInfo">Tippe auf den Knopf und schau kurz aufs Gerät. Wenn gefragt wird, ob ein <b>Passkey</b> gesichert werden soll, tippe auf <b>Fortfahren</b>.</p>
+        <div class="actions">
+          <button type="button" class="btn" id="bioGo">${bioName()} aktivieren</button>
+          <button class="btn secondary" value="cancel" formnovalidate>Später</button>
+        </div>`;
+      const go = dialogForm.querySelector('#bioGo');
+      go.onclick = async () => {
+        go.disabled = true;
+        try {
+          await Lock.enableBiometrics(); // ruft Face ID als ersten Schritt auf – direkt im Antippen
+          done = true; dialog.close('ok');
+          toast(`${bioName()} aktiviert ✓`);
+        } catch (e) {
+          console.warn(e);
+          go.disabled = false; go.textContent = 'Nochmal versuchen';
+          dialogForm.querySelector('#bioInfo').innerHTML = `<b>Hat nicht geklappt:</b> ${esc(bioError(e))}<br><br>Du kannst es auch später unter „Mehr“ einschalten – bis dahin entsperrst du mit dem Code.`;
+        }
+      };
+      dialog.onclose = () => { resolve(done); render(); };
+      dialog.returnValue = '';
+      dialog.showModal();
+    });
   }
 
   async function setupLock() {
@@ -708,6 +743,7 @@
       const blockedWithoutTap = auto && e.name === 'NotAllowedError' && Date.now() - started < 700;
       if (!blockedWithoutTap) bioFails++;
       setLockMode();
+      if (!blockedWithoutTap && e.name !== 'NotAllowedError') lockMsg.textContent = bioError(e);
     } finally { bioBusy = false; }
   }
   bioBtn.onclick = () => tryBio(false);
