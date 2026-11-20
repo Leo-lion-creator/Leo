@@ -1,5 +1,5 @@
 /* Service Worker: offline-fähig + Empfang von geteilten Chats (Android „Teilen“) */
-const CACHE = 'geschenke-v5';
+const CACHE = 'geschenke-v6';
 const SHELL = ['./', 'index.html', 'styles.css', 'app.js', 'detector.js', 'shops.js', 'lock.js', 'manifest.webmanifest', 'icon.svg'];
 
 self.addEventListener('install', e => {

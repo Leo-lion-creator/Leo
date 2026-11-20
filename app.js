@@ -530,10 +530,10 @@
             <button class="btn small" id="lockNow">Jetzt sperren</button>
             ${bioOk ? `<button class="btn secondary small" id="bioToggle">${bioName()} ${Lock.hasBiometrics() ? 'ausschalten' : 'einschalten'}</button>` : ''}
             <button class="btn secondary small" id="pinChange">Code ändern</button>
-            ${bioOk ? '' : `<p class="muted" style="width:100%;margin:4px 0 0">${bioName()} ist in diesem Browser gerade nicht verfügbar.</p>`}
+            ${bioOk ? '' : `<button class="btn secondary small" id="bioSetup">${bioName()} einrichten</button>`}
             <button class="btn danger small" id="lockOff">Sperre ausschalten</button>
           </div>`
-        : `<p class="muted">Schütze deine Geschenkideen vor neugierigen Blicken – mit ${bioOk ? bioName() + ' (und Notfall-Code)' : 'Code'}. Die Daten werden dann verschlüsselt gespeichert.</p>
+        : `<p class="muted">Schütze deine Geschenkideen vor neugierigen Blicken – mit ${bioName()} und Notfall-Code${bioOk ? '' : ` (${bioName()} richtest du dabei mit ein)`}. Die Daten werden dann verschlüsselt gespeichert.</p>
           <button class="btn" id="lockOn">🔒 Sperre einrichten</button>`}
       </div>
       <h2>App aufs Handy</h2>
@@ -559,6 +559,11 @@
     if ($('#bioToggle')) $('#bioToggle').onclick = async () => {
       if (Lock.hasBiometrics()) { await Lock.disableBiometrics(); toast(`${bioName()} ausgeschaltet`); return render(); }
       if (!Lock.keyIsExtractable() && !(await confirmPin())) return;
+      await enableBio();
+    };
+    if ($('#bioSetup')) $('#bioSetup').onclick = async () => {
+      if (!(await bioGuide())) return render();
+      if (!Lock.keyIsExtractable() && !(await confirmPin())) return render();
       await enableBio();
     };
     if ($('#pinChange')) $('#pinChange').onclick = async () => {
@@ -626,6 +631,60 @@
     toast('Falscher Code'); return false;
   }
 
+  function platform() {
+    const ua = navigator.userAgent;
+    if (/iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1)) return 'ios';
+    if (/Android/.test(ua)) return 'android';
+    if (/Macintosh/.test(ua)) return 'mac';
+    if (/Windows/.test(ua)) return 'windows';
+    return 'other';
+  }
+
+  function bioGuideHtml() {
+    const steps = {
+      ios: [
+        'Öffne die <b>Einstellungen</b>-App deines iPads/iPhones.',
+        'Tippe auf <b>„Face ID & Code“</b> (bei Geräten mit Home-Taste: <b>„Touch ID & Code“</b>).',
+        'Falls noch kein Gerätecode existiert: <b>„Code aktivieren“</b> und einen Code festlegen.',
+        'Tippe auf <b>„Face ID konfigurieren“</b> und folge den Anweisungen (Kopf langsam im Kreis bewegen).',
+        'Zurück in den Einstellungen: oben auf <b>deinen Namen → iCloud → „Passwörter und Schlüsselbund“</b> einschalten (dort werden Passkeys gespeichert).',
+        'Komm hierher zurück und tippe auf <b>„Erneut prüfen“</b>.',
+      ],
+      android: [
+        'Öffne die <b>Einstellungen</b>.',
+        'Gehe zu <b>„Sicherheit“</b> bzw. <b>„Sicherheit & Datenschutz“</b>.',
+        'Lege eine <b>Displaysperre</b> (PIN/Muster) fest, falls noch keine da ist.',
+        'Richte <b>„Fingerabdruck“</b> oder <b>„Entsperrung per Gesichtserkennung“</b> ein.',
+        'Komm hierher zurück und tippe auf <b>„Erneut prüfen“</b>.',
+      ],
+      mac: ['Öffne <b>Systemeinstellungen → „Touch ID & Passwort“</b>.', 'Füge einen Fingerabdruck hinzu.', 'Komm zurück und tippe auf <b>„Erneut prüfen“</b>.'],
+      windows: ['Öffne <b>Einstellungen → Konten → Anmeldeoptionen</b>.', 'Richte <b>Windows Hello</b> (Gesicht, Fingerabdruck oder PIN) ein.', 'Komm zurück und tippe auf <b>„Erneut prüfen“</b>.'],
+      other: ['Richte in den Geräte-Einstellungen eine Bildschirmsperre mit Gesicht oder Fingerabdruck ein.', 'Komm zurück und tippe auf <b>„Erneut prüfen“</b>.'],
+    }[platform()];
+    return `Die App kann ${bioName()} nicht selbst einschalten – das geht nur in den Geräte-Einstellungen. So geht's:
+      <ol class="steps" style="margin-top:8px;color:var(--text)">${steps.map(x => `<li>${x}</li>`).join('')}</ol>`;
+  }
+
+  /** Geführte Einrichtung. true = jetzt verfügbar, false = nur Code, null = abgebrochen */
+  let guideOpen = false; // während der Anleitung nicht automatisch sperren (man ist ja in den Einstellungen)
+  async function bioGuide() {
+    guideOpen = true;
+    try { return await bioGuideLoop(); } finally { guideOpen = false; }
+  }
+  async function bioGuideLoop() {
+    for (;;) {
+      const r = await formDialog({
+        title: `${bioName()} einrichten`, text: bioGuideHtml(), fields: [],
+        ok: 'Erneut prüfen', extraButton: { value: 'pin', label: 'Nur Code' },
+      });
+      if (r === null) return null;
+      if (r === 'pin') return false;
+      bioOk = await Lock.biometricsAvailable();
+      if (bioOk) { toast(`${bioName()} ist bereit ✓`); return true; }
+      toast(`${bioName()} ist noch nicht eingerichtet – schau dir die Schritte nochmal an`);
+    }
+  }
+
   function bioError(e) {
     switch (e && e.name) {
       case 'NotAllowedError': return `Abgebrochen oder vom Gerät nicht erlaubt. Prüfe in den iPad-Einstellungen unter „Passwörter“ bzw. „Apple-ID → iCloud → Passwörter und Schlüsselbund“, ob das Sichern von Passkeys erlaubt ist, und nutze kein privates Surfen.`;
@@ -668,7 +727,21 @@
 
   async function setupLock() {
     let useBio = false;
-    if (bioOk) {
+    if (!bioOk) {
+      const choice = await formDialog({
+        title: 'App-Sperre einrichten',
+        text: `<b>${bioName()}</b> ist auf diesem Gerät noch nicht eingerichtet. Du kannst es jetzt einrichten – die App zeigt dir, wie es geht. Oder du nutzt erst mal nur einen Code.`,
+        ok: `${bioName()} einrichten`,
+        fields: [],
+        extraButton: { value: 'pin', label: 'Nur Code' },
+      });
+      if (choice === null) return;
+      if (choice !== 'pin') {
+        const r = await bioGuide();
+        if (r === null) return;
+        useBio = r;
+      }
+    } else {
       const choice = await formDialog({
         title: 'App-Sperre einrichten',
         text: `Soll die App mit <b>${bioName()}</b> entsperrt werden? Du legst gleich zusätzlich einen Notfall-Code fest – den brauchst du nur, wenn ${bioName()} zweimal nicht klappt.`,
@@ -758,7 +831,7 @@
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) { hiddenAt = Date.now(); document.body.classList.add('covered'); return; }
     document.body.classList.remove('covered');
-    if (Lock.isEnabled() && Lock.isUnlocked() && Date.now() - hiddenAt > 60000) { Lock.lock(); showLock(); }
+    if (Lock.isEnabled() && Lock.isUnlocked() && !guideOpen && Date.now() - hiddenAt > 60000) { Lock.lock(); showLock(); }
   });
 
   // ---------- Geteilte Inhalte (Android Share Target) ----------
